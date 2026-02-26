@@ -1,3 +1,5 @@
+console.log('[WecnDraw] Server starting...');
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -23,6 +25,9 @@ const fileRoutes = require('./routes/fileRoutes');
 const app = express();
 const server = http.createServer(app);
 
+// Trust Railway's reverse proxy (fixes express-rate-limit ERR_ERL_UNEXPECTED_X_FORWARDED_FOR)
+app.set('trust proxy', 1);
+
 // ─── CORS (FIRST middleware, before everything else) ───
 const corsConfig = {
     origin: 'https://wecndraw.vercel.app',
@@ -40,17 +45,6 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 app.use(cors(corsConfig));
-
-// Socket.IO
-const io = new Server(server, {
-    cors: corsConfig,
-    pingTimeout: 60000,
-    pingInterval: 25000,
-});
-
-// Connect services
-connectDB();
-connectCloudinary();
 
 // Security
 app.use(helmet({
@@ -70,16 +64,26 @@ if (process.env.NODE_ENV !== 'production') {
 // Rate limiting
 app.use('/api', generalLimiter);
 
+console.log('[WecnDraw] Middleware configured.');
+
 // Health check
 app.get('/health', (req, res) => {
     res.status(200).json({ success: true, message: 'WecnDraw API is running' });
 });
 
-// API Routes
+// API Routes — mounted at both /api/* and /* for compatibility
 app.use('/api/auth', authRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/files', fileRoutes);
+
+// Also mount without /api prefix (in case VITE_API_URL on Vercel omits /api)
+app.use('/auth', authRoutes);
+app.use('/rooms', roomRoutes);
+app.use('/sessions', sessionRoutes);
+app.use('/files', fileRoutes);
+
+console.log('[WecnDraw] Routes registered.');
 
 // 404 handler
 app.use('/{*path}', (req, res) => {
@@ -89,12 +93,24 @@ app.use('/{*path}', (req, res) => {
 // Error handler
 app.use(errorMiddleware);
 
-// Socket.io
+// Socket.IO
+const io = new Server(server, {
+    cors: corsConfig,
+    pingTimeout: 60000,
+    pingInterval: 25000,
+});
 initSocketManager(io);
 
+// Start listening FIRST, then connect to DB (so server is alive immediately)
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
+    console.log(`[WecnDraw] Server listening on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
     logger.info(`WecnDraw server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
 });
+
+// Connect to services AFTER server is listening (non-blocking)
+console.log('[WecnDraw] Connecting to MongoDB...');
+connectDB();
+connectCloudinary();
 
 module.exports = { app, server };

@@ -38,17 +38,19 @@ const io = new Server(server, {
 connectDB();
 connectCloudinary();
 
+// ─── CORS (MUST be first, before helmet and everything else) ───
+app.use(cors({
+    origin: true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+app.options('*', cors()); // Explicitly handle preflight
+
 // Security
 app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
-
-// CORS — allow all origins temporarily to debug preflight issues
-app.use(cors({
-    origin: true,
-    credentials: true,
-}));
-app.options('*', cors());
 
 // Parsing
 app.use(cookieParser());

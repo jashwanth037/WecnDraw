@@ -6,6 +6,7 @@ import {
     Video, VideoOff, MoreVertical, Smile,
     ZoomIn, ZoomOut, Maximize, Undo2, Redo2,
     Monitor, MonitorOff, Mic, MicOff, Users, X,
+    Minimize2, Maximize2, Fullscreen, ExternalLink,
 } from 'lucide-react';
 import Canvas from '../components/whiteboard/Canvas';
 import Toolbar from '../components/whiteboard/Toolbar';
@@ -59,13 +60,17 @@ const WhiteboardPage: React.FC = () => {
     const actionMenuRef = useRef<HTMLDivElement>(null);
     const reactionRef = useRef<HTMLDivElement>(null);
 
-    // Screen viewer drag & resize state
-    const [viewerPos, setViewerPos] = useState({ x: 16, y: -1 }); // y=-1 means "auto bottom"
+    // Screen viewer state
+    const [viewerPos, setViewerPos] = useState({ x: 16, y: Math.max(100, (typeof window !== 'undefined' ? window.innerHeight : 600) - 340) });
     const [viewerSize, setViewerSize] = useState({ w: 400, h: 260 });
-    const isDragging = useRef(false);
-    const isResizing = useRef(false);
-    const dragOffset = useRef({ x: 0, y: 0 });
-    const resizeStart = useRef({ x: 0, y: 0, w: 0, h: 0 });
+    const [viewerMode, setViewerMode] = useState<'normal' | 'minimized' | 'maximized' | 'fullscreen'>('normal');
+    const viewerPosRef = useRef(viewerPos);
+    const viewerSizeRef = useRef(viewerSize);
+    const screenVideoRef = useRef<HTMLVideoElement>(null);
+    viewerPosRef.current = viewerPos;
+    viewerSizeRef.current = viewerSize;
+    // Pre-maximize snapshot for restore
+    const preMaxRef = useRef({ x: 16, y: 100, w: 400, h: 260 });
 
     // Close menus on outside click
     useEffect(() => {
@@ -121,58 +126,79 @@ const WhiteboardPage: React.FC = () => {
         return () => cleanups.forEach((fn) => fn());
     }, [on]);
 
-    // Callback ref: bind remote screen stream to video element on mount
-    const screenVideoRefCallback = useCallback((video: HTMLVideoElement | null) => {
-        if (!video) return;
-        const screenStream = remoteStreams.find((s) => s.type === 'screen');
-        if (screenStream) {
-            video.srcObject = screenStream.stream;
-        }
-    }, [remoteStreams]);
-
-    // Initialize viewer position when panel first opens
+    // Bind remote screen stream to video element
     useEffect(() => {
-        if (viewerPos.y === -1) {
-            setViewerPos({ x: 16, y: window.innerHeight - viewerSize.h - 80 });
+        const screenStream = remoteStreams.find((s) => s.type === 'screen');
+        if (screenVideoRef.current && screenStream) {
+            screenVideoRef.current.srcObject = screenStream.stream;
         }
-    }, [viewerPos.y]);
+    }, [remoteStreams, isWatchingScreen]);
 
-    // Drag handlers for screen viewer
+    // Drag handler — uses refs so callback identity is stable
     const onDragStart = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
-        isDragging.current = true;
-        dragOffset.current = { x: e.clientX - viewerPos.x, y: e.clientY - viewerPos.y };
+        const startX = e.clientX - viewerPosRef.current.x;
+        const startY = e.clientY - viewerPosRef.current.y;
         const onMove = (ev: MouseEvent) => {
-            if (!isDragging.current) return;
             setViewerPos({
-                x: Math.max(0, Math.min(window.innerWidth - 200, ev.clientX - dragOffset.current.x)),
-                y: Math.max(0, Math.min(window.innerHeight - 100, ev.clientY - dragOffset.current.y)),
+                x: Math.max(0, Math.min(window.innerWidth - 200, ev.clientX - startX)),
+                y: Math.max(0, Math.min(window.innerHeight - 60, ev.clientY - startY)),
             });
         };
-        const onUp = () => { isDragging.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+        const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
         window.addEventListener('mousemove', onMove);
         window.addEventListener('mouseup', onUp);
-    }, [viewerPos]);
+    }, []);
 
-    // Resize handlers for screen viewer
+    // Resize handler — uses refs so callback identity is stable
     const onResizeStart = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        isResizing.current = true;
-        resizeStart.current = { x: e.clientX, y: e.clientY, w: viewerSize.w, h: viewerSize.h };
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startW = viewerSizeRef.current.w;
+        const startH = viewerSizeRef.current.h;
         const onMove = (ev: MouseEvent) => {
-            if (!isResizing.current) return;
-            const dw = ev.clientX - resizeStart.current.x;
-            const dh = ev.clientY - resizeStart.current.y;
             setViewerSize({
-                w: Math.max(240, Math.min(800, resizeStart.current.w + dw)),
-                h: Math.max(160, Math.min(600, resizeStart.current.h + dh)),
+                w: Math.max(240, Math.min(900, startW + ev.clientX - startX)),
+                h: Math.max(160, Math.min(700, startH + ev.clientY - startY)),
             });
         };
-        const onUp = () => { isResizing.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+        const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
         window.addEventListener('mousemove', onMove);
         window.addEventListener('mouseup', onUp);
-    }, [viewerSize]);
+    }, []);
+
+    // Viewer mode toggles
+    const toggleMinimize = () => setViewerMode((m) => m === 'minimized' ? 'normal' : 'minimized');
+    const toggleMaximize = () => {
+        setViewerMode((m) => {
+            if (m === 'maximized') {
+                // Restore previous size/pos
+                setViewerPos({ x: preMaxRef.current.x, y: preMaxRef.current.y });
+                setViewerSize({ w: preMaxRef.current.w, h: preMaxRef.current.h });
+                return 'normal';
+            } else {
+                // Save current and go maximized
+                preMaxRef.current = { x: viewerPos.x, y: viewerPos.y, w: viewerSize.w, h: viewerSize.h };
+                setViewerPos({ x: 20, y: 60 });
+                setViewerSize({ w: window.innerWidth - 40, h: window.innerHeight - 80 });
+                return 'maximized';
+            }
+        });
+    };
+    const toggleFullscreen = () => {
+        if (viewerMode === 'fullscreen') {
+            setViewerMode('normal');
+            setViewerPos({ x: preMaxRef.current.x, y: preMaxRef.current.y });
+            setViewerSize({ w: preMaxRef.current.w, h: preMaxRef.current.h });
+        } else {
+            preMaxRef.current = { x: viewerPos.x, y: viewerPos.y, w: viewerSize.w, h: viewerSize.h };
+            setViewerPos({ x: 0, y: 0 });
+            setViewerSize({ w: window.innerWidth, h: window.innerHeight });
+            setViewerMode('fullscreen');
+        }
+    };
 
     // Track who is sharing audio for the indicator
     useEffect(() => {
@@ -307,25 +333,30 @@ const WhiteboardPage: React.FC = () => {
                 <AnimatePresence>
                     {isWatchingScreen && screenStream && (
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.9 }}
+                            key="screen-viewer"
+                            initial={{ opacity: 0, scale: 0.92 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.9 }}
+                            exit={{ opacity: 0, scale: 0.92 }}
+                            transition={{ duration: 0.2 }}
                             style={{
                                 position: 'fixed', left: viewerPos.x, top: viewerPos.y, zIndex: 50,
-                                width: viewerSize.w, height: viewerSize.h,
-                                borderRadius: 14, overflow: 'hidden',
-                                border: '1px solid rgba(124, 58, 237, 0.4)',
-                                boxShadow: '0 12px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(124,58,237,0.15)',
+                                width: viewerSize.w,
+                                height: viewerMode === 'minimized' ? 'auto' : viewerSize.h,
+                                borderRadius: viewerMode === 'fullscreen' ? 0 : 14,
+                                overflow: 'hidden',
+                                border: viewerMode === 'fullscreen' ? 'none' : '1px solid rgba(124, 58, 237, 0.4)',
+                                boxShadow: viewerMode === 'fullscreen' ? 'none' : '0 12px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(124,58,237,0.15)',
                                 display: 'flex', flexDirection: 'column',
                                 background: '#0d0d14',
                             }}
                         >
                             {/* Title bar — drag handle */}
                             <div
-                                onMouseDown={onDragStart}
+                                onMouseDown={viewerMode === 'fullscreen' ? undefined : onDragStart}
                                 style={{
-                                    padding: '6px 10px', cursor: 'grab',
-                                    background: 'linear-gradient(135deg, rgba(124,58,237,0.25), rgba(6,182,212,0.15))',
+                                    padding: '6px 10px',
+                                    cursor: viewerMode === 'fullscreen' ? 'default' : 'grab',
+                                    background: 'linear-gradient(135deg, rgba(124,58,237,0.3), rgba(6,182,212,0.18))',
                                     borderBottom: '1px solid rgba(255,255,255,0.08)',
                                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                                     flexShrink: 0, userSelect: 'none',
@@ -335,45 +366,95 @@ const WhiteboardPage: React.FC = () => {
                                     <Monitor size={13} style={{ color: '#a78bfa' }} />
                                     {screenStream.username}'s screen
                                 </span>
-                                <button
-                                    onClick={() => setIsWatchingScreen(false)}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                                    {/* Minimize */}
+                                    <button
+                                        onClick={toggleMinimize}
+                                        title={viewerMode === 'minimized' ? 'Restore' : 'Minimize'}
+                                        style={{
+                                            background: 'rgba(255,255,255,0.08)', border: 'none', color: '#94a3b8',
+                                            cursor: 'pointer', padding: '3px', borderRadius: 5, display: 'flex',
+                                            transition: 'all 0.15s',
+                                        }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#94a3b8'; }}
+                                    >
+                                        <Minimize2 size={12} />
+                                    </button>
+                                    {/* Maximize / Restore */}
+                                    <button
+                                        onClick={toggleMaximize}
+                                        title={viewerMode === 'maximized' ? 'Restore' : 'Maximize'}
+                                        style={{
+                                            background: 'rgba(255,255,255,0.08)', border: 'none', color: '#94a3b8',
+                                            cursor: 'pointer', padding: '3px', borderRadius: 5, display: 'flex',
+                                            transition: 'all 0.15s',
+                                        }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#94a3b8'; }}
+                                    >
+                                        <Maximize2 size={12} />
+                                    </button>
+                                    {/* Fullscreen */}
+                                    <button
+                                        onClick={toggleFullscreen}
+                                        title={viewerMode === 'fullscreen' ? 'Exit fullscreen' : 'Fullscreen'}
+                                        style={{
+                                            background: 'rgba(255,255,255,0.08)', border: 'none', color: '#94a3b8',
+                                            cursor: 'pointer', padding: '3px', borderRadius: 5, display: 'flex',
+                                            transition: 'all 0.15s',
+                                        }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#94a3b8'; }}
+                                    >
+                                        <Fullscreen size={12} />
+                                    </button>
+                                    {/* Close */}
+                                    <button
+                                        onClick={() => { setIsWatchingScreen(false); setViewerMode('normal'); }}
+                                        title="Close"
+                                        style={{
+                                            background: 'rgba(255,255,255,0.08)', border: 'none', color: '#94a3b8',
+                                            cursor: 'pointer', padding: '3px', borderRadius: 5, display: 'flex',
+                                            transition: 'all 0.15s',
+                                        }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; e.currentTarget.style.color = '#ef4444'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#94a3b8'; }}
+                                    >
+                                        <X size={13} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Video area (hidden when minimized) */}
+                            {viewerMode !== 'minimized' && (
+                                <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#000' }}>
+                                    <video
+                                        ref={screenVideoRef}
+                                        autoPlay
+                                        playsInline
+                                        muted
+                                        style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Resize handle (only in normal mode) */}
+                            {viewerMode === 'normal' && (
+                                <div
+                                    onMouseDown={onResizeStart}
                                     style={{
-                                        background: 'rgba(255,255,255,0.08)', border: 'none', color: '#94a3b8',
-                                        cursor: 'pointer', padding: '3px', borderRadius: 6, display: 'flex',
-                                        transition: 'all 0.15s',
+                                        position: 'absolute', bottom: 0, right: 0,
+                                        width: 20, height: 20, cursor: 'nwse-resize',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     }}
-                                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; e.currentTarget.style.color = '#ef4444'; }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#94a3b8'; }}
                                 >
-                                    <X size={13} />
-                                </button>
-                            </div>
-
-                            {/* Video area */}
-                            <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#000' }}>
-                                <video
-                                    ref={screenVideoRefCallback}
-                                    autoPlay
-                                    playsInline
-                                    muted
-                                    style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
-                                />
-                            </div>
-
-                            {/* Resize handle */}
-                            <div
-                                onMouseDown={onResizeStart}
-                                style={{
-                                    position: 'absolute', bottom: 0, right: 0,
-                                    width: 18, height: 18, cursor: 'nwse-resize',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                }}
-                            >
-                                <svg width="10" height="10" viewBox="0 0 10 10" style={{ opacity: 0.4 }}>
-                                    <line x1="9" y1="1" x2="1" y2="9" stroke="#a78bfa" strokeWidth="1.5" />
-                                    <line x1="9" y1="5" x2="5" y2="9" stroke="#a78bfa" strokeWidth="1.5" />
-                                </svg>
-                            </div>
+                                    <svg width="10" height="10" viewBox="0 0 10 10" style={{ opacity: 0.5 }}>
+                                        <line x1="9" y1="1" x2="1" y2="9" stroke="#a78bfa" strokeWidth="1.5" />
+                                        <line x1="9" y1="5" x2="5" y2="9" stroke="#a78bfa" strokeWidth="1.5" />
+                                    </svg>
+                                </div>
+                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>

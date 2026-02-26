@@ -1,109 +1,78 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import LoginForm from '../components/auth/LoginForm';
 import RegisterForm from '../components/auth/RegisterForm';
-import { Paintbrush } from 'lucide-react';
 
-// Animated canvas background strokes
-const AnimatedStroke: React.FC<{ delay?: number; x: string; y: string; rotate?: number; length?: number; color?: string }> = ({ delay = 0, x, y, rotate = 0, length = 120, color = 'rgba(124,58,237,0.15)' }) => (
-    <motion.div
-        initial={{ scaleX: 0, opacity: 0 }}
-        animate={{ scaleX: [0, 1, 1, 0], opacity: [0, 0.6, 0.6, 0] }}
-        transition={{ duration: 4, delay, repeat: Infinity, repeatDelay: Math.random() * 3 + 2, ease: 'easeInOut' }}
-        style={{ position: 'absolute', left: x, top: y, width: length, height: 4, background: color, borderRadius: 4, transformOrigin: 'left', transform: `rotate(${rotate}deg)` }}
-    />
+/* Animated SVG drawing on left panel */
+const DrawingAnimation: React.FC = () => (
+    <svg width="280" height="280" viewBox="0 0 280 280" style={{ opacity: 0.9 }}>
+        <motion.circle cx="140" cy="140" r="100" stroke="#8b5cf6" strokeWidth="2" fill="none"
+            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 2, ease: 'easeInOut' }} />
+        <motion.circle cx="140" cy="140" r="75" stroke="#d946ef" strokeWidth="1.5" fill="none" strokeDasharray="6 6"
+            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 2, delay: 0.3 }} />
+        <motion.path d="M 80 140 Q 110 80 140 140 T 200 140" stroke="#f472b6" strokeWidth="2.5" fill="none" strokeLinecap="round"
+            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, delay: 0.8 }} />
+        <motion.path d="M 100 180 L 180 180" stroke="#fbbf24" strokeWidth="2" fill="none" strokeLinecap="round" strokeDasharray="4 4"
+            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1, delay: 1.3 }} />
+        {/* Stars */}
+        {[{ cx: 70, cy: 70 }, { cx: 210, cy: 60 }, { cx: 60, cy: 200 }, { cx: 220, cy: 210 }].map((p, i) => (
+            <motion.circle key={i} cx={p.cx} cy={p.cy} r="3" fill="#8b5cf6"
+                initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: [0, 1, 0.5, 1] }}
+                transition={{ duration: 2, delay: 0.5 + i * 0.3, repeat: Infinity, repeatDelay: 3 }} />
+        ))}
+    </svg>
 );
 
 const AuthPage: React.FC = () => {
     const [searchParams] = useSearchParams();
-    const [mode, setMode] = useState<'login' | 'register'>(
-        searchParams.get('mode') === 'register' ? 'register' : 'login'
-    );
+    const [isLogin, setIsLogin] = useState(searchParams.get('mode') !== 'register');
 
-    useEffect(() => {
-        document.title = mode === 'login' ? 'Sign In — WecnDraw' : 'Register — WecnDraw';
-    }, [mode]);
+    useEffect(() => { document.title = isLogin ? 'Sign In — WecnDraw' : 'Register — WecnDraw'; }, [isLogin]);
 
     return (
-        <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 1fr', background: 'var(--bg-primary)' }}>
-            {/* Left: Animated splash */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, rgba(124,58,237,0.1) 0%, rgba(13,13,20,1) 60%, rgba(6,182,212,0.08) 100%)' }}>
-                {/* Animated strokes */}
-                {[...Array(12)].map((_, i) => (
-                    <AnimatedStroke
-                        key={i}
-                        delay={i * 0.5}
-                        x={`${10 + Math.random() * 80}%`}
-                        y={`${10 + Math.random() * 80}%`}
-                        rotate={(Math.random() - 0.5) * 60}
-                        length={60 + Math.random() * 120}
-                        color={['rgba(124,58,237,0.25)', 'rgba(6,182,212,0.2)', 'rgba(236,72,153,0.2)'][i % 3]}
-                    />
-                ))}
+        <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--bg-primary)' }}>
+            {/* Left — Branding side */}
+            <div style={{
+                flex: '0 0 45%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                background: 'linear-gradient(160deg, #0a0a15 0%, #111128 50%, #0f0f1e 100%)',
+                position: 'relative', overflow: 'hidden', padding: '3rem',
+            }}>
+                {/* Gradient orbs */}
+                <div style={{ position: 'absolute', top: '15%', left: '20%', width: 300, height: 300, background: 'radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)', borderRadius: '50%', filter: 'blur(30px)' }} />
+                <div style={{ position: 'absolute', bottom: '20%', right: '10%', width: 200, height: 200, background: 'radial-gradient(circle, rgba(244,114,182,0.08) 0%, transparent 70%)', borderRadius: '50%', filter: 'blur(30px)' }} />
 
-                <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '2rem' }}>
-                    <motion.div
-                        initial={{ scale: 0, rotate: -180 }}
-                        animate={{ scale: 1, rotate: 0 }}
-                        transition={{ type: 'spring', stiffness: 200, damping: 20, delay: 0.3 }}
-                        style={{ width: 80, height: 80, borderRadius: 20, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', boxShadow: '0 0 40px rgba(124,58,237,0.5)' }}
-                    >
-                        <Paintbrush size={36} color="white" />
-                    </motion.div>
-                    <motion.h1
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5 }}
-                        style={{ fontFamily: 'Syne, sans-serif', fontSize: '2.5rem', fontWeight: 800, lineHeight: 1.1, marginBottom: '1rem' }}
-                    >
-                        <span className="gradient-text">Create Together,</span>
-                        <br />
-                        Draw Together
-                    </motion.h1>
-                    <motion.p
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.6 }}
-                        style={{ color: 'var(--text-muted)', fontSize: '1.05rem', lineHeight: 1.6, maxWidth: 360 }}
-                    >
-                        The infinite canvas for creative minds. Real-time collaboration for designers, artists, and thinkers.
-                    </motion.p>
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+                    <DrawingAnimation />
+                    <h2 style={{ fontFamily: 'Syne', fontWeight: 800, fontSize: '1.75rem', color: 'var(--text-primary)', marginTop: '1.5rem' }}>
+                        Create <span className="gradient-text">Together</span>
+                    </h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.5rem', maxWidth: 280 }}>
+                        The infinite canvas for creative minds. Real-time collaboration, powerful tools.
+                    </p>
+                </motion.div>
 
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.8 }}
-                        style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '2rem', flexWrap: 'wrap' }}
-                    >
-                        {['🎨 Real-time Sync', '🛠️ Smart Tools', '☁️ Always Saved'].map((item, i) => (
-                            <span key={i} className="chip">{item}</span>
-                        ))}
-                    </motion.div>
-                </div>
+                {/* Hide on mobile */}
+                <style>{`@media (max-width: 768px) { .auth-left { display: none !important; } }`}</style>
             </div>
 
-            {/* Right: Form */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+            {/* Right — Form side */}
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
                 <motion.div
-                    initial={{ opacity: 0, x: 40 }}
+                    initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.5 }}
-                    className="glass"
-                    style={{ width: '100%', maxWidth: 440, padding: '2.5rem', borderRadius: 20 }}
+                    style={{ width: '100%', maxWidth: 420 }}
                 >
                     <AnimatePresence mode="wait">
-                        {mode === 'login' ? (
-                            <LoginForm key="login" onSwitch={() => setMode('register')} />
+                        {isLogin ? (
+                            <LoginForm key="login" onSwitch={() => setIsLogin(false)} />
                         ) : (
-                            <RegisterForm key="register" onSwitch={() => setMode('login')} />
+                            <RegisterForm key="register" onSwitch={() => setIsLogin(true)} />
                         )}
                     </AnimatePresence>
                 </motion.div>
             </div>
-
-            {/* Mobile: stack vertically */}
-            <style>{`@media (max-width: 768px) { .auth-grid { grid-template-columns: 1fr !important; } .auth-left { display: none !important; } }`}</style>
         </div>
     );
 };

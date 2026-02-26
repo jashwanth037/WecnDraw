@@ -26,7 +26,11 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: process.env.CLIENT_URL || 'http://localhost:5173',
+        origin: [
+            'http://localhost:5173',
+            'https://wecndraw.vercel.app',
+            process.env.CLIENT_URL,
+        ].filter(Boolean),
         methods: ['GET', 'POST'],
         credentials: true,
     },
@@ -43,6 +47,7 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Handle preflight requests explicitly
 
 // Parsing
 app.use(cookieParser());

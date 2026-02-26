@@ -3,8 +3,8 @@ const logger = require('../utils/logger');
 
 const connectDB = async () => {
     if (!process.env.MONGO_URI) {
-        logger.error('MONGO_URI environment variable is not defined. Cannot connect to MongoDB.');
-        process.exit(1);
+        logger.error('MONGO_URI is not set. Server will run but database calls will fail.');
+        return; // Don't exit — let the server stay alive so routes respond
     }
 
     try {

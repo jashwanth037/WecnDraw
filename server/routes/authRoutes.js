@@ -11,6 +11,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 
 router.post('/register', authLimiter, ...authValidation.register, validate, authController.register);
 router.post('/login', authLimiter, ...authValidation.login, validate, authController.login);
+router.post('/google', authController.googleLogin);
 router.post('/logout', authController.logout);
 router.post('/refresh-token', authController.refreshToken);
 router.get('/me', authMiddleware, authController.getMe);

@@ -3,8 +3,97 @@ const jwtService = require('../services/jwtService');
 const cloudinaryService = require('../services/cloudinaryService');
 const apiResponse = require('../utils/apiResponse');
 const logger = require('../utils/logger');
+const { OAuth2Client } = require('google-auth-library');
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const authController = {
+    googleLogin: async (req, res, next) => {
+        try {
+            const { credential } = req.body;
+            if (!credential) {
+                return apiResponse.error(res, 'Google credential is required', 400);
+            }
+
+            let googleId, email, name, picture;
+
+            try {
+                const ticket = await googleClient.verifyIdToken({
+                    idToken: credential,
+                    audience: process.env.GOOGLE_CLIENT_ID,
+                });
+                const payload = ticket.getPayload();
+                googleId = payload.sub;
+                email = payload.email;
+                name = payload.name;
+                picture = payload.picture;
+            } catch (_idTokenErr) {
+                const https = require('https');
+                const userInfo = await new Promise((resolve, reject) => {
+                    https.get(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${credential}`, (resp) => {
+                        let data = '';
+                        resp.on('data', (chunk) => { data += chunk; });
+                        resp.on('end', () => {
+                            try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+                        });
+                    }).on('error', reject);
+                });
+                if (!userInfo.email) {
+                    return apiResponse.error(res, 'Invalid Google token', 401);
+                }
+                googleId = userInfo.sub;
+                email = userInfo.email;
+                name = userInfo.name;
+                picture = userInfo.picture;
+            }
+
+            let user = await User.findOne({ googleId });
+
+            if (!user) {
+                user = await User.findOne({ email });
+                if (user) {
+                    user.googleId = googleId;
+                    user.authProvider = user.authProvider === 'local' ? 'local' : 'google';
+                    if (!user.avatar && picture) user.avatar = picture;
+                    await user.save({ validateBeforeSave: false });
+                } else {
+                    const baseUsername = (name || email.split('@')[0]).replace(/[^a-zA-Z0-9_]/g, '').slice(0, 25);
+                    let username = baseUsername;
+                    let counter = 1;
+                    while (await User.findOne({ username })) {
+                        username = `${baseUsername}${counter++}`;
+                    }
+
+                    user = await User.create({
+                        username,
+                        email,
+                        googleId,
+                        authProvider: 'google',
+                        avatar: picture || '',
+                    });
+                }
+            }
+
+            const { accessToken, refreshToken } = jwtService.generateTokenPair(user._id, user.role);
+            user.refreshToken = refreshToken;
+            await user.save({ validateBeforeSave: false });
+            jwtService.setRefreshTokenCookie(res, refreshToken);
+
+            return apiResponse.success(res, 'Google login successful', {
+                user: { _id: user._id, username: user.username, email: user.email, avatar: user.avatar, role: user.role },
+                accessToken,
+            });
+        } catch (err) {
+            logger.error('Google login error:', err);
+            if (err.message?.includes('Token used too late') || err.message?.includes('Invalid token')) {
+                return apiResponse.error(res, 'Invalid or expired Google token', 401);
+            }
+            next(err);
+        }
+    },
+
+
+
     register: async (req, res, next) => {
         try {
             const { username, email, password } = req.body;

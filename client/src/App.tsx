@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { SocketProvider } from './context/SocketContext';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -12,6 +13,8 @@ import DrawPage from './pages/DrawPage';
 import NotFoundPage from './pages/NotFoundPage';
 import { useCanvasStore } from './store/canvasStore';
 import { useEffect } from 'react';
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 const ThemeApplicator: React.FC = () => {
   const { theme } = useCanvasStore();
@@ -28,57 +31,59 @@ const ThemeApplicator: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ErrorBoundary>
-      <BrowserRouter>
-        <SocketProvider>
-          <ThemeApplicator />
-          <Toaster
-            position="bottom-right"
-            toastOptions={{
-              style: {
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border)',
-                borderRadius: '12px',
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '0.875rem',
-              },
-              success: { iconTheme: { primary: '#10b981', secondary: 'white' } },
-              error: { iconTheme: { primary: '#ef4444', secondary: 'white' } },
-              duration: 3500,
-            }}
-          />
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/auth" element={<AuthPage />} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <DashboardPage />
-                </ProtectedRoute>
-              }
+      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+        <BrowserRouter>
+          <SocketProvider>
+            <ThemeApplicator />
+            <Toaster
+              position="bottom-right"
+              toastOptions={{
+                style: {
+                  background: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px',
+                  fontFamily: 'Inter, sans-serif',
+                  fontSize: '0.875rem',
+                },
+                success: { iconTheme: { primary: '#10b981', secondary: 'white' } },
+                error: { iconTheme: { primary: '#ef4444', secondary: 'white' } },
+                duration: 3500,
+              }}
             />
-            <Route
-              path="/draw"
-              element={
-                <ProtectedRoute>
-                  <DrawPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/room/:roomId"
-              element={
-                <ProtectedRoute>
-                  <WhiteboardPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/404" element={<NotFoundPage />} />
-            <Route path="*" element={<Navigate to="/404" replace />} />
-          </Routes>
-        </SocketProvider>
-      </BrowserRouter>
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/auth" element={<AuthPage />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <DashboardPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/draw"
+                element={
+                  <ProtectedRoute>
+                    <DrawPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/room/:roomId"
+                element={
+                  <ProtectedRoute>
+                    <WhiteboardPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/404" element={<NotFoundPage />} />
+              <Route path="*" element={<Navigate to="/404" replace />} />
+            </Routes>
+          </SocketProvider>
+        </BrowserRouter>
+      </GoogleOAuthProvider>
     </ErrorBoundary>
   );
 };

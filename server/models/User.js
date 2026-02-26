@@ -21,9 +21,19 @@ const userSchema = new mongoose.Schema(
         },
         passwordHash: {
             type: String,
-            required: [true, 'Password is required'],
+            required: false,
             minlength: 8,
             select: false,
+        },
+        googleId: {
+            type: String,
+            unique: true,
+            sparse: true,
+        },
+        authProvider: {
+            type: String,
+            enum: ['local', 'google'],
+            default: 'local',
         },
         avatar: {
             type: String,

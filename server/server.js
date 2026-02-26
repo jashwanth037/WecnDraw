@@ -85,23 +85,32 @@ app.use('/files', fileRoutes);
 
 console.log('[WecnDraw] Routes registered.');
 
-// 404 handler
-app.use('/{*path}', (req, res) => {
+// 404 handler (use standard middleware — /{*path} can crash on some Express 5 builds)
+app.use((req, res) => {
     res.status(404).json({ success: false, message: 'Route not found' });
 });
+
+console.log('[WecnDraw] 404 handler set.');
 
 // Error handler
 app.use(errorMiddleware);
 
-// Socket.IO
-const io = new Server(server, {
-    cors: corsConfig,
-    pingTimeout: 60000,
-    pingInterval: 25000,
-});
-initSocketManager(io);
+console.log('[WecnDraw] Error handler set.');
 
-// Start listening FIRST, then connect to DB (so server is alive immediately)
+// Socket.IO
+try {
+    const io = new Server(server, {
+        cors: corsConfig,
+        pingTimeout: 60000,
+        pingInterval: 25000,
+    });
+    initSocketManager(io);
+    console.log('[WecnDraw] Socket.IO initialized.');
+} catch (err) {
+    console.error('[WecnDraw] Socket.IO init failed:', err.message);
+}
+
+// Start listening, then connect to DB
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
     console.log(`[WecnDraw] Server listening on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);

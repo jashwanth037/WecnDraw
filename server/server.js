@@ -24,9 +24,14 @@ const fileRoutes = require('./routes/fileRoutes');
 const app = express();
 const server = http.createServer(app);
 
+const allowedOrigins = [
+    'http://localhost:5173',
+    'https://wecndraw.vercel.app',
+];
+
 const io = new Server(server, {
     cors: {
-        origin: true,
+        origin: allowedOrigins,
         methods: ['GET', 'POST'],
         credentials: true,
     },
@@ -40,12 +45,12 @@ connectCloudinary();
 
 // ─── CORS (MUST be first, before helmet and everything else) ───
 app.use(cors({
-    origin: true,
+    origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-app.options('*', cors()); // Explicitly handle preflight
+app.options('*', cors()); // Explicitly handle preflight — returns 204
 
 // Security
 app.use(helmet({

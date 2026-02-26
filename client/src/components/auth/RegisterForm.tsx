@@ -32,8 +32,24 @@ const RegisterForm: React.FC<{ onSwitch: () => void }> = ({ onSwitch }) => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (form.username.trim().length < 3) {
+            toast.error('Username must be at least 3 characters');
+            return;
+        }
         if (form.password.length < 8) {
             toast.error('Password must be at least 8 characters');
+            return;
+        }
+        if (!/[A-Z]/.test(form.password)) {
+            toast.error('Password must contain at least one uppercase letter');
+            return;
+        }
+        if (!/[a-z]/.test(form.password)) {
+            toast.error('Password must contain at least one lowercase letter');
+            return;
+        }
+        if (!/[0-9]/.test(form.password)) {
+            toast.error('Password must contain at least one number');
             return;
         }
         setIsLoading(true);
@@ -43,7 +59,12 @@ const RegisterForm: React.FC<{ onSwitch: () => void }> = ({ onSwitch }) => {
             toast.success('Account created! Welcome to WecnDraw 🎨');
             navigate('/dashboard');
         } catch (err: any) {
-            toast.error(err.response?.data?.message || 'Registration failed');
+            const data = err.response?.data;
+            if (data?.errors?.length) {
+                data.errors.forEach((e: { message: string }) => toast.error(e.message));
+            } else {
+                toast.error(data?.message || 'Registration failed');
+            }
         } finally {
             setIsLoading(false);
         }

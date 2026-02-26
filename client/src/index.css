@@ -1,16 +1,14 @@
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
-@theme {
-  --color-bg-primary: #0d0d14;
-  --color-bg-surface: #1a1a2e;
-  --color-bg-surface2: #16213e;
-  --color-accent-purple: #7c3aed;
-  --color-accent-cyan: #06b6d4;
-  --color-accent-pink: #ec4899;
-  --color-text-primary: #f8fafc;
-  --color-text-muted: #94a3b8;
-  --color-border: rgba(255, 255, 255, 0.08);
+/* Disable Tailwind's preflight (CSS reset) so it doesn't override our custom styles */
+@layer base {
+
+  *,
+  ::before,
+  ::after {
+    border-color: currentColor;
+  }
 }
 
 /* === BASE STYLES === */
@@ -429,21 +427,23 @@ pre,
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(26, 26, 46, 0.65);
+  background: rgba(26, 26, 46, 0.92);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   color: var(--text-muted);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   transition: all 0.15s ease;
 }
 
 .floating-btn:hover {
-  background: rgba(26, 26, 46, 0.8);
+  background: rgba(26, 26, 46, 0.98);
   color: var(--accent-purple);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .floating-btn.active {
@@ -451,15 +451,16 @@ pre,
 }
 
 .light .floating-btn {
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   color: var(--text-muted);
 }
 
 .light .floating-btn:hover {
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 1);
   color: var(--accent-purple);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
 }
 
 .light .floating-btn.active {

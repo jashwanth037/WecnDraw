@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -58,7 +58,14 @@ const WhiteboardPage: React.FC = () => {
 
     const actionMenuRef = useRef<HTMLDivElement>(null);
     const reactionRef = useRef<HTMLDivElement>(null);
-    const screenVideoRef = useRef<HTMLVideoElement>(null);
+
+    // Screen viewer drag & resize state
+    const [viewerPos, setViewerPos] = useState({ x: 16, y: -1 }); // y=-1 means "auto bottom"
+    const [viewerSize, setViewerSize] = useState({ w: 400, h: 260 });
+    const isDragging = useRef(false);
+    const isResizing = useRef(false);
+    const dragOffset = useRef({ x: 0, y: 0 });
+    const resizeStart = useRef({ x: 0, y: 0, w: 0, h: 0 });
 
     // Close menus on outside click
     useEffect(() => {
@@ -114,13 +121,58 @@ const WhiteboardPage: React.FC = () => {
         return () => cleanups.forEach((fn) => fn());
     }, [on]);
 
-    // Attach remote screen share stream to video element
-    useEffect(() => {
+    // Callback ref: bind remote screen stream to video element on mount
+    const screenVideoRefCallback = useCallback((video: HTMLVideoElement | null) => {
+        if (!video) return;
         const screenStream = remoteStreams.find((s) => s.type === 'screen');
-        if (screenVideoRef.current && screenStream) {
-            screenVideoRef.current.srcObject = screenStream.stream;
+        if (screenStream) {
+            video.srcObject = screenStream.stream;
         }
     }, [remoteStreams]);
+
+    // Initialize viewer position when panel first opens
+    useEffect(() => {
+        if (viewerPos.y === -1) {
+            setViewerPos({ x: 16, y: window.innerHeight - viewerSize.h - 80 });
+        }
+    }, [viewerPos.y]);
+
+    // Drag handlers for screen viewer
+    const onDragStart = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        isDragging.current = true;
+        dragOffset.current = { x: e.clientX - viewerPos.x, y: e.clientY - viewerPos.y };
+        const onMove = (ev: MouseEvent) => {
+            if (!isDragging.current) return;
+            setViewerPos({
+                x: Math.max(0, Math.min(window.innerWidth - 200, ev.clientX - dragOffset.current.x)),
+                y: Math.max(0, Math.min(window.innerHeight - 100, ev.clientY - dragOffset.current.y)),
+            });
+        };
+        const onUp = () => { isDragging.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    }, [viewerPos]);
+
+    // Resize handlers for screen viewer
+    const onResizeStart = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        isResizing.current = true;
+        resizeStart.current = { x: e.clientX, y: e.clientY, w: viewerSize.w, h: viewerSize.h };
+        const onMove = (ev: MouseEvent) => {
+            if (!isResizing.current) return;
+            const dw = ev.clientX - resizeStart.current.x;
+            const dh = ev.clientY - resizeStart.current.y;
+            setViewerSize({
+                w: Math.max(240, Math.min(800, resizeStart.current.w + dw)),
+                h: Math.max(160, Math.min(600, resizeStart.current.h + dh)),
+            });
+        };
+        const onUp = () => { isResizing.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    }, [viewerSize]);
 
     // Track who is sharing audio for the indicator
     useEffect(() => {
@@ -251,7 +303,7 @@ const WhiteboardPage: React.FC = () => {
                 {/* Canvas */}
                 <Canvas roomId={roomId!} template={currentRoom?.template} />
 
-                {/* ── Screen share video overlay (opt-in: only when watching) ── */}
+                {/* ── Screen share draggable viewer (opt-in) ── */}
                 <AnimatePresence>
                     {isWatchingScreen && screenStream && (
                         <motion.div
@@ -259,34 +311,69 @@ const WhiteboardPage: React.FC = () => {
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.9 }}
                             style={{
-                                position: 'absolute', bottom: 72, left: 16, zIndex: 25,
-                                borderRadius: 12, overflow: 'hidden',
-                                border: '2px solid var(--accent-purple)',
-                                boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                                maxWidth: 480, maxHeight: 300,
+                                position: 'fixed', left: viewerPos.x, top: viewerPos.y, zIndex: 50,
+                                width: viewerSize.w, height: viewerSize.h,
+                                borderRadius: 14, overflow: 'hidden',
+                                border: '1px solid rgba(124, 58, 237, 0.4)',
+                                boxShadow: '0 12px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(124,58,237,0.15)',
+                                display: 'flex', flexDirection: 'column',
+                                background: '#0d0d14',
                             }}
                         >
-                            <div style={{
-                                padding: '4px 10px', background: 'var(--accent-purple)', color: 'white',
-                                fontSize: '0.7rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            }}>
-                                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <Monitor size={12} /> {screenStream.username}'s screen
+                            {/* Title bar — drag handle */}
+                            <div
+                                onMouseDown={onDragStart}
+                                style={{
+                                    padding: '6px 10px', cursor: 'grab',
+                                    background: 'linear-gradient(135deg, rgba(124,58,237,0.25), rgba(6,182,212,0.15))',
+                                    borderBottom: '1px solid rgba(255,255,255,0.08)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                    flexShrink: 0, userSelect: 'none',
+                                }}
+                            >
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', fontWeight: 700, color: '#e2e8f0' }}>
+                                    <Monitor size={13} style={{ color: '#a78bfa' }} />
+                                    {screenStream.username}'s screen
                                 </span>
                                 <button
                                     onClick={() => setIsWatchingScreen(false)}
-                                    style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: 2, display: 'flex' }}
+                                    style={{
+                                        background: 'rgba(255,255,255,0.08)', border: 'none', color: '#94a3b8',
+                                        cursor: 'pointer', padding: '3px', borderRadius: 6, display: 'flex',
+                                        transition: 'all 0.15s',
+                                    }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; e.currentTarget.style.color = '#ef4444'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#94a3b8'; }}
                                 >
-                                    <X size={12} />
+                                    <X size={13} />
                                 </button>
                             </div>
-                            <video
-                                ref={screenVideoRef}
-                                autoPlay
-                                playsInline
-                                muted
-                                style={{ width: '100%', display: 'block', background: '#000' }}
-                            />
+
+                            {/* Video area */}
+                            <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#000' }}>
+                                <video
+                                    ref={screenVideoRefCallback}
+                                    autoPlay
+                                    playsInline
+                                    muted
+                                    style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                                />
+                            </div>
+
+                            {/* Resize handle */}
+                            <div
+                                onMouseDown={onResizeStart}
+                                style={{
+                                    position: 'absolute', bottom: 0, right: 0,
+                                    width: 18, height: 18, cursor: 'nwse-resize',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}
+                            >
+                                <svg width="10" height="10" viewBox="0 0 10 10" style={{ opacity: 0.4 }}>
+                                    <line x1="9" y1="1" x2="1" y2="9" stroke="#a78bfa" strokeWidth="1.5" />
+                                    <line x1="9" y1="5" x2="5" y2="9" stroke="#a78bfa" strokeWidth="1.5" />
+                                </svg>
+                            </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -488,17 +575,20 @@ const WhiteboardPage: React.FC = () => {
                             exit={{ opacity: 0, y: -20 }}
                             style={{
                                 position: 'absolute', top: 60, right: 14,
-                                zIndex: 35, background: 'var(--bg-surface)', border: '1px solid var(--accent-purple)',
+                                zIndex: 35, background: 'rgba(26, 26, 46, 0.92)', border: '1px solid var(--accent-purple)',
                                 padding: '6px 12px', borderRadius: 10, fontSize: '0.75rem', fontWeight: 600,
                                 boxShadow: '0 4px 20px rgba(124,58,237,0.25)',
                                 display: 'flex', alignItems: 'center', gap: 8,
                                 color: 'var(--text-primary)', cursor: 'pointer',
                             }}
-                            onClick={() => { setShowChat(true); setShowMembers(false); }}
+                            onClick={() => setIsWatchingScreen(true)}
                         >
                             <Monitor size={14} style={{ color: 'var(--accent-purple)' }} />
                             <span>{screenShareUser} is sharing</span>
-                            <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>tap to view</span>
+                            <span style={{
+                                fontSize: '0.6rem', color: 'white', background: 'var(--accent-purple)',
+                                padding: '2px 6px', borderRadius: 6, fontWeight: 700,
+                            }}>Watch</span>
                         </motion.div>
                     )}
                 </AnimatePresence>

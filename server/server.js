@@ -1,8 +1,3 @@
-// Only load .env file in development — Railway injects env vars directly
-if (process.env.NODE_ENV !== 'production') {
-    require('dotenv').config();
-}
-
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');

@@ -45,7 +45,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 app.use(cors(corsConfig));
-app.options('*', cors(corsConfig));
+app.options('/(.*)', cors(corsConfig));
 
 // Socket.IO
 const io = new Server(server, {

@@ -32,7 +32,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (socketRef.current?.connected) return;
         if (!accessToken) return;
 
-        const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
+        // Ensure socket URL is absolute (same fix as api.ts — prevents relative-path bug)
+        let socketUrl = (import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000').trim();
+        if (!/^https?:\/\//i.test(socketUrl)) {
+            socketUrl = `https://${socketUrl}`;
+        }
+
+        const socket = io(socketUrl, {
             auth: { token: accessToken },
             transports: ['websocket', 'polling'],
             reconnectionAttempts: 5,

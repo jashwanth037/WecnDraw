@@ -1,8 +1,25 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 
+/**
+ * Sanitize the API base URL to ensure it is always an absolute URL.
+ * - Adds https:// if no protocol is present (prevents relative-path bug on Vercel)
+ * - Strips trailing slashes for consistency
+ */
+const sanitizeUrl = (url: string): string => {
+    let sanitized = url.trim();
+    if (sanitized && !/^https?:\/\//i.test(sanitized)) {
+        sanitized = `https://${sanitized}`;
+    }
+    return sanitized.replace(/\/+$/, '');
+};
+
+const API_BASE_URL = sanitizeUrl(
+    import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+);
+
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+    baseURL: API_BASE_URL,
     withCredentials: true,
     timeout: 30000,
 });
@@ -54,7 +71,7 @@ api.interceptors.response.use(
 
             try {
                 const response = await axios.post(
-                    `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/refresh-token`,
+                    `${API_BASE_URL}/auth/refresh-token`,
                     {},
                     { withCredentials: true }
                 );

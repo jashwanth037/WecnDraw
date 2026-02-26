@@ -16,15 +16,6 @@ const logger = winston.createLogger({
     ),
     transports: [
         new winston.transports.Console(),
-        new winston.transports.File({
-            filename: 'logs/error.log',
-            level: 'error',
-            format: combine(timestamp(), errors({ stack: true }), logFormat),
-        }),
-        new winston.transports.File({
-            filename: 'logs/combined.log',
-            format: combine(timestamp(), logFormat),
-        }),
     ],
 });
 

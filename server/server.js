@@ -9,7 +9,7 @@ const cookieParser = require('cookie-parser');
 
 const connectDB = require('./config/db');
 const { connectCloudinary } = require('./config/cloudinary');
-const corsOptions = require('./config/corsOptions');
+
 const { generalLimiter } = require('./middleware/rateLimiter');
 const errorMiddleware = require('./middleware/errorMiddleware');
 const { initSocketManager } = require('./socket/socketManager');
@@ -26,11 +26,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: [
-            'http://localhost:5173',
-            'https://wecndraw.vercel.app',
-            process.env.CLIENT_URL,
-        ].filter(Boolean),
+        origin: true,
         methods: ['GET', 'POST'],
         credentials: true,
     },
@@ -46,8 +42,13 @@ connectCloudinary();
 app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Handle preflight requests explicitly
+
+// CORS — allow all origins temporarily to debug preflight issues
+app.use(cors({
+    origin: true,
+    credentials: true,
+}));
+app.options('*', cors());
 
 // Parsing
 app.use(cookieParser());

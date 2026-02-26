@@ -1,4 +1,8 @@
-require('dotenv').config();
+// Only load .env file in development — Railway injects env vars directly
+if (process.env.NODE_ENV !== 'production') {
+    require('dotenv').config();
+}
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -24,17 +28,28 @@ const fileRoutes = require('./routes/fileRoutes');
 const app = express();
 const server = http.createServer(app);
 
-const allowedOrigins = [
-    'http://localhost:5173',
-    'https://wecndraw.vercel.app',
-];
+// ─── CORS (FIRST middleware, before everything else) ───
+const corsConfig = {
+    origin: 'https://wecndraw.vercel.app',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+};
 
+// In development, also allow localhost
+if (process.env.NODE_ENV !== 'production') {
+    corsConfig.origin = [
+        'http://localhost:5173',
+        'https://wecndraw.vercel.app',
+    ];
+}
+
+app.use(cors(corsConfig));
+app.options('*', cors(corsConfig));
+
+// Socket.IO
 const io = new Server(server, {
-    cors: {
-        origin: allowedOrigins,
-        methods: ['GET', 'POST'],
-        credentials: true,
-    },
+    cors: corsConfig,
     pingTimeout: 60000,
     pingInterval: 25000,
 });
@@ -42,15 +57,6 @@ const io = new Server(server, {
 // Connect services
 connectDB();
 connectCloudinary();
-
-// ─── CORS (MUST be first, before helmet and everything else) ───
-app.use(cors({
-    origin: allowedOrigins,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-}));
-app.options('*', cors()); // Explicitly handle preflight — returns 204
 
 // Security
 app.use(helmet({
